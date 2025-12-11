@@ -29,17 +29,17 @@ describe("Test", () => {
 
     // Send Transaction
     const txHash = await program.methods
-    .initializeVaultTokenA()
-    .accounts({
-      vaultTokenAccount: vault_token_account,
-      vault_auth: vaultPDA,
-      payer: program.provider.publicKey,
-      mint: tokenA_mint_address,
-      systemProgram: web3.SystemProgram.programId,
-      tokenProgram: new web3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
-      rent: web3.SYSVAR_RENT_PUBKEY,      
-    })
-    .rpc();
+      .initializeVaultTokenA()
+      .accounts({
+        vaultTokenAccount: vault_token_account,
+        vault_auth: vaultPDA,
+        payer: program.provider.publicKey,
+        mint: tokenA_mint_address,
+        systemProgram: web3.SystemProgram.programId,
+        tokenProgram: new web3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+        rent: web3.SYSVAR_RENT_PUBKEY,
+      })
+      .rpc();
 
     console.log(`Use 'solana confirm -v ${txHash}' to see the logs`);
 
@@ -47,7 +47,7 @@ describe("Test", () => {
     await program.provider.connection.confirmTransaction(txHash);
   });
 
-  it("initializes a Vault Account For Token B", async() => {
+  it("initializes a Vault Account For Token B", async () => {
     const [vault_token_account, bump1] = await web3.PublicKey.findProgramAddressSync(
       [Buffer.from("vaultTokenB"), tokenB_mint_address.toBuffer()],
       program.programId
@@ -63,17 +63,17 @@ describe("Test", () => {
 
     // Send Transaction
     const txHash = await program.methods
-    .initializeVaultTokenB()
-    .accounts({
-      vaultTokenAccount: vault_token_account,
-      vault_auth: vaultPDA,
-      payer: program.provider.publicKey,
-      mint: tokenB_mint_address,
-      systemProgram: web3.SystemProgram.programId,
-      tokenProgram: new web3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
-      rent: web3.SYSVAR_RENT_PUBKEY,    
-    })
-    .rpc();
+      .initializeVaultTokenB()
+      .accounts({
+        vaultTokenAccount: vault_token_account,
+        vault_auth: vaultPDA,
+        payer: program.provider.publicKey,
+        mint: tokenB_mint_address,
+        systemProgram: web3.SystemProgram.programId,
+        tokenProgram: new web3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+        rent: web3.SYSVAR_RENT_PUBKEY,
+      })
+      .rpc();
 
     console.log(`Use 'solana confirm -v ${txHash}' to see the logs`);
 
@@ -91,21 +91,33 @@ describe("Test", () => {
       program.programId
     )
 
-    const amount_to_deposit = new BN(5_000_000_000);
+    const userAddress = new web3.PublicKey("2ZZ63wbxbonZsD1XBdr4JeeNP6f5FY5NXh2M3Jjz7ez9");
+
+    const [user_vault_state_a, bump2] = await web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("user_vault_token_a"), userAddress.toBuffer(), tokenA_mint_address.toBuffer()],
+      program.programId
+    );
+
+    console.log("This is the user_vault_token_a pda from deposity Token A: ", user_vault_state_a);
+
+
+    const amount_to_deposit = new BN(50_000_000_000);
 
     const userATA = new web3.PublicKey("Bd1Ho7Y9PsZ1zK6YpXnHGmzSoygPVM9FhYMuj85ytEUg");
 
     // Send Transaction
     const txHash = await program.methods
-    .tokenADepositInPdaVault(amount_to_deposit)
-    .accounts({
-      user: program.provider.publicKey,
-      userTokenAccount: userATA,
-      vaultTokenAccount: vault_token_account,
-      mint: tokenA_mint_address,
-      tokenProgram: new web3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),      
-    })
-    .rpc();
+      .tokenADepositInPdaVault(amount_to_deposit)
+      .accounts({
+        user: program.provider.publicKey,
+        userTokenAccount: userATA,
+        vaultTokenAccount: vault_token_account,
+        userVaultStateA: user_vault_state_a,
+        mint: tokenA_mint_address,
+        tokenProgram: new web3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+        systemProgram: web3.SystemProgram.programId
+      })
+      .rpc();
 
     console.log(`Use 'solana confirm -v ${txHash}' to see the logs`);
 
@@ -117,23 +129,32 @@ describe("Test", () => {
     const [vault_token_account, bump1] = await web3.PublicKey.findProgramAddressSync(
       [Buffer.from("vaultTokenB"), tokenB_mint_address.toBuffer()],
       program.programId
-    )
+    );
 
-    const amount_to_deposit = new BN(5_000_000_000);
+    const userAddress = new web3.PublicKey("2ZZ63wbxbonZsD1XBdr4JeeNP6f5FY5NXh2M3Jjz7ez9");
+
+    const [user_vault_state_b, bump2] = await web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("user_vault_token_b"), userAddress.toBuffer(), tokenB_mint_address.toBuffer()],
+      program.programId
+    );
+
+    const amount_to_deposit = new BN(50_000_000_000);
 
     const userATA = new web3.PublicKey("7TWc3HMxNi2FH33BWzdMeexN93C8DLXdDBtfKgXuXEQc");
 
     // Send Transaction
     const txHash = await program.methods
-    .tokenBDepositInPdaVault(amount_to_deposit)
-    .accounts({
-      user: program.provider.publicKey,
-      userTokenAccount: userATA,
-      vaultTokenAccount: vault_token_account,
-      mint: tokenB_mint_address,
-      tokenProgram: new web3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
-    })
-    .rpc();
+      .tokenBDepositInPdaVault(amount_to_deposit)
+      .accounts({
+        user: program.provider.publicKey,
+        userTokenAccount: userATA,
+        vaultTokenAccount: vault_token_account,
+        userVaultStateB: user_vault_state_b,
+        mint: tokenB_mint_address,
+        tokenProgram: new web3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+        systemProgram: web3.SystemProgram.programId
+      })
+      .rpc();
 
     console.log(`Use 'solana confirm -v ${txHash}' to see the logs`);
 
@@ -172,7 +193,7 @@ describe("Test", () => {
     console.log("This is the value of vault_token_account_a: ", vaultTokenAVault.amount.toString());
     console.log("This is the value of vault_token_account_b: ", vaultTokenBVault.amount.toString());
 
-    const amount = new BN(2_000_000_000);
+    const amount = new BN(20_000_000_000);
 
     const txHash = await program.methods
       .swapBForA(amount)
@@ -190,13 +211,13 @@ describe("Test", () => {
       })
       .rpc();
 
-      console.log(`Use 'solana confirm -v ${txHash}' to see the logs`);
+    console.log(`Use 'solana confirm -v ${txHash}' to see the logs`);
 
-      // Confirm Transaction
-      await program.provider.connection.confirmTransaction(txHash);
+    // Confirm Transaction
+    await program.provider.connection.confirmTransaction(txHash);
   })
 
-    it("Swap Token A for Token B", async () => {
+  it("Swap Token A for Token B", async () => {
 
     const userATAforTokenA = new web3.PublicKey("Bd1Ho7Y9PsZ1zK6YpXnHGmzSoygPVM9FhYMuj85ytEUg");
     const userATAforTokenB = new web3.PublicKey("7TWc3HMxNi2FH33BWzdMeexN93C8DLXdDBtfKgXuXEQc");
@@ -227,7 +248,7 @@ describe("Test", () => {
     console.log("This is the value of vault_token_account_a: ", vaultTokenAVault.amount.toString());
     console.log("This is the value of vault_token_account_b: ", vaultTokenBVault.amount.toString());
 
-    const amount = new BN(1_000_000_000);
+    const amount = new BN(10_000_000_000);
 
     const txHash = await program.methods
       .swapAForB(amount)
@@ -245,9 +266,82 @@ describe("Test", () => {
       })
       .rpc();
 
-      console.log(`Use 'solana confirm -v ${txHash}' to see the logs`);
+    console.log(`Use 'solana confirm -v ${txHash}' to see the logs`);
 
-      // Confirm Transaction
-      await program.provider.connection.confirmTransaction(txHash);
-  })
+    // Confirm Transaction
+    await program.provider.connection.confirmTransaction(txHash);
+  });
+
+  it("Withdrawing the tokens", async () => {
+    const userATAforTokenA = new web3.PublicKey("Bd1Ho7Y9PsZ1zK6YpXnHGmzSoygPVM9FhYMuj85ytEUg");
+    const userATAforTokenB = new web3.PublicKey("7TWc3HMxNi2FH33BWzdMeexN93C8DLXdDBtfKgXuXEQc");
+
+    const userAddress = new web3.PublicKey("2ZZ63wbxbonZsD1XBdr4JeeNP6f5FY5NXh2M3Jjz7ez9");
+
+    const [user_vault_state_a] = web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("user_vault_token_a"),
+        userAddress.toBuffer(),
+        tokenA_mint_address.toBuffer(),
+      ],
+      program.programId
+    );
+
+    console.log("This is the user_vault_state_a from withdrawing the tokens", user_vault_state_a);
+
+    const [user_vault_state_b] = web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("user_vault_token_b"),
+        userAddress.toBuffer(),
+        tokenB_mint_address.toBuffer(),
+      ],
+      program.programId
+    );
+
+    const [vault_token_account_a, bump3] = await web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("vaultTokenA"), tokenA_mint_address.toBuffer()],
+      program.programId
+    );
+
+    const [vault_token_account_b, bump4] = await web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("vaultTokenB"), tokenB_mint_address.toBuffer()],
+      program.programId
+    );
+
+    const [vault_auth_a, bump5] = await web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("vault_auth_a"), tokenA_mint_address.toBuffer()],
+      program.programId
+    );
+
+    const [vault_auth_b, bump6] = await web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("vault_auth_b"), tokenB_mint_address.toBuffer()],
+      program.programId
+    );
+
+    const amountOfTokenA = new BN(1_000_000_000);
+    const amountOfTokenB = new BN(1_000_000_000);
+
+    const txHash = await program.methods
+      .withdrawFromVault(amountOfTokenA, amountOfTokenB)
+      .accounts({
+        user: program.provider.publicKey,
+        userTokenAccountA: userATAforTokenA,
+        userTokenAccountB: userATAforTokenB,
+        userVaultStateA: user_vault_state_a,
+        userVaultStateB: user_vault_state_b,
+        vaultTokenAAccount: vault_token_account_a,
+        vaultAuthA: vault_auth_a,
+        vaultTokenBAccount: vault_token_account_b,
+        vaultAuthB: vault_auth_b,
+        mintA: tokenA_mint_address,
+        mintB: tokenB_mint_address,
+        tokenProgram: new web3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+      })
+      .rpc();
+
+    console.log(`Use 'solana confirm -v ${txHash}' to see the logs`);
+
+    // Confirm Transaction
+    await program.provider.connection.confirmTransaction(txHash);
+  });
 });
