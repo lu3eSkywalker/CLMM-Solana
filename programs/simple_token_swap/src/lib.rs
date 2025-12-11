@@ -3,7 +3,7 @@ use anchor_spl::token::{
     self, InitializeAccount, Mint, Token, TokenAccount, TokenAccount as SPLTokenAccount, Transfer,
 };
 
-declare_id!("3UVpaimGuoKnaJ7pVxKmVKFGVdeZsE4ygV6azibrqgdT");
+declare_id!("EG889onCgMUMMHhJ4JpnykPDrfH6e8Nx7GM1SZXNqyBX");
 
 #[program]
 pub mod Simple_Token_Swap {
@@ -29,6 +29,10 @@ pub mod Simple_Token_Swap {
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
         token::transfer(cpi_ctx, amount)?;
 
+        let state = &mut ctx.accounts.user_vault_state_a;
+        state.owner = ctx.accounts.user.key();
+        state.amount = state.amount.checked_add(amount).unwrap();
+
         Ok(())
     }
 
@@ -43,6 +47,10 @@ pub mod Simple_Token_Swap {
 
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
         token::transfer(cpi_ctx, amount)?;
+
+        let state = &mut ctx.accounts.user_vault_state_b;
+        state.owner = ctx.accounts.user.key();
+        state.amount = state.amount.checked_add(amount).unwrap();
 
         Ok(())
     }
@@ -164,6 +172,71 @@ pub mod Simple_Token_Swap {
 
         Ok(())
     }
+
+    pub fn withdraw_from_vault(ctx: Context<WithdrawFromVault>, amountOfTokenA: u64, amountOfTokenB: u64) -> Result<()> {
+        let token_quantity_a = ctx.accounts.vault_token_a_account.amount;
+        let token_quantity_b = ctx.accounts.vault_token_b_account.amount;
+
+        require!(
+            amountOfTokenA <= token_quantity_a,
+            TokenSwapError::InsufficientTokenA
+        );
+
+        require!(
+            amountOfTokenB <= token_quantity_b,
+            TokenSwapError::InsufficientTokenB
+        );
+
+        let mint_key_a = ctx.accounts.mint_a.key();
+        let mint_key_b = ctx.accounts.mint_b.key();
+
+        let seeds = &[
+            b"vault_auth_a",
+            mint_key_a.as_ref(),
+            &[ctx.bumps.vault_auth_a],
+        ];
+
+        let signer = &[&seeds[..]];
+
+        let cpi_accounts = Transfer{
+            from: ctx.accounts.vault_token_a_account.to_account_info(),
+            to: ctx.accounts.user_token_account_a.to_account_info(),
+            authority: ctx.accounts.vault_auth_a.to_account_info(),
+        };
+
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
+        token::transfer(cpi_ctx, amountOfTokenA)?;
+
+        let state = &mut ctx.accounts.user_vault_state_a;
+        state.amount = state.amount.checked_sub(amountOfTokenA).ok_or(TokenSwapError::InsufficientTokenA)?;
+
+
+        let seeds2 = &[
+            b"vault_auth_b",
+            mint_key_b.as_ref(),
+            &[ctx.bumps.vault_auth_b],
+        ];
+
+        let signer2 = &[&seeds2[..]];
+
+        let cpi_accounts2 = Transfer {
+            from: ctx.accounts.vault_token_b_account.to_account_info(),
+            to: ctx.accounts.user_token_account_b.to_account_info(),
+            authority: ctx.accounts.vault_auth_b.to_account_info(),
+        };
+
+        let cpi_program2 = ctx.accounts.token_program.to_account_info();
+
+        let cpi_ctx2 = CpiContext::new_with_signer(cpi_program2, cpi_accounts2, signer2);
+        token::transfer(cpi_ctx2, amountOfTokenB)?;
+
+        let state2 = &mut ctx.accounts.user_vault_state_b;
+        state2.amount = state2.amount.checked_sub(amountOfTokenB).ok_or(TokenSwapError::InsufficientTokenB)?;
+
+        Ok(())
+    }
 }
 
 fn amm_calculation(token_a_quantity: u64, token_b_quantity: u64) -> Result<(u128)> {
@@ -267,11 +340,24 @@ pub struct DepositToVaultTokenA<'info> {
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
 
+    #[account(
+        init_if_needed,
+        payer = user,
+        space = 8 + 32 + 32 + 8,
+        seeds = [
+            b"user_vault_token_a",
+            user.key().as_ref(),
+            mint.key().as_ref()
+        ],
+        bump
+    )]
+    pub user_vault_state_a: Account<'info, UserVaultState>,
+
     pub mint: Account<'info, Mint>,
 
     pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>
 }
-
 
 #[derive(Accounts)]
 #[instruction()]
@@ -318,9 +404,23 @@ pub struct DepositToVaultTokenB<'info> {
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
 
+    #[account(
+        init_if_needed,
+        payer = user,
+        space = 8 + 32 + 32 + 8,
+        seeds = [
+            b"user_vault_token_b",
+            user.key().as_ref(),
+            mint.key().as_ref()
+        ],
+        bump
+    )]
+    pub user_vault_state_b: Account<'info, UserVaultState>,
+
     pub mint: Account<'info, Mint>,
 
     pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -367,6 +467,80 @@ pub struct TokenSwap<'info> {
     pub mint_b: Account<'info, Mint>,
 
     pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct WithdrawFromVault<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,
+
+    #[account(mut)]
+    pub user_token_account_a: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub user_token_account_b: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        seeds = [
+            b"user_vault_token_a",
+            user.key().as_ref(),
+            mint_a.key().as_ref(),
+        ],
+        bump,
+    )]
+    pub user_vault_state_a: Account<'info, UserVaultState>,
+
+    #[account(
+        mut,
+        seeds = [
+            b"user_vault_token_b",
+            user.key().as_ref(),
+            mint_b.key().as_ref(),
+        ],
+        bump,
+    )]
+    pub user_vault_state_b: Account<'info, UserVaultState>,
+
+    #[account(
+        mut,
+        seeds = [b"vaultTokenA", mint_a.key().as_ref()],
+        bump
+    )]
+    pub vault_token_a_account: Account<'info, TokenAccount>,
+
+    /// CHECK: This is just a signer PDA, no data
+    #[account(
+        seeds = [b"vault_auth_a", mint_a.key().as_ref()],
+        bump
+    )]
+    pub vault_auth_a: AccountInfo<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"vaultTokenB", mint_b.key().as_ref()],
+        bump
+    )]
+    pub vault_token_b_account: Account<'info, TokenAccount>,
+
+    /// CHECK: This is just a signer PDA, no data
+    #[account(
+        seeds = [b"vault_auth_b", mint_b.key().as_ref()],
+        bump
+    )]
+    pub vault_auth_b: AccountInfo<'info>,
+
+    pub mint_a: Account<'info, Mint>,
+
+    pub mint_b: Account<'info, Mint>,
+
+    pub token_program: Program<'info, Token>,
+}
+
+#[account]
+pub struct UserVaultState {
+    pub owner: Pubkey,
+    pub amount: u64,
 }
 
 #[error_code]
